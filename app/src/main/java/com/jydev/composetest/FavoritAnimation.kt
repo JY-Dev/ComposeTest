@@ -42,12 +42,11 @@ private enum class BoxState {
 }
 @Composable
 fun FavoriteAnimation(
+    animationFinish : () -> Unit,
     animationState: AnimationState,
     modifier: Modifier = Modifier,
 ) {
-    val currentState by remember { mutableStateOf(animationState) }
-    println("스테이트 : $currentState $animationState")
-    val transition = updateTransition(currentState)
+    val transition = updateTransition(animationState)
     val animatedFraction by transition.animateFloat(
         transitionSpec = {
             tween(
@@ -61,7 +60,9 @@ fun FavoriteAnimation(
             AnimationState.NONE -> 0f
         }
     }
-    println("테스트용 : $animatedFraction $currentState ${transition.targetState}")
+    if(animatedFraction == 1f)
+        animationFinish()
+    println("테스트용 : $animatedFraction $transition ${transition.targetState}")
     val hearts = remember { List(HEART_COUNT) { Heart() } }
     hearts.forEach { heart ->
         heart.reset()

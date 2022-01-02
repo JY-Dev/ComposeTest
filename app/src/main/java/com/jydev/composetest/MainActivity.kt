@@ -69,7 +69,9 @@ class MainActivity : ComponentActivity() {
     fun HeartEffectView(modifier: Modifier) {
         var heartAnimationState by remember { mutableStateOf(AnimationState.NONE)}
         Box(modifier) {
-            FavoriteAnimation(animationState = heartAnimationState, modifier = Modifier.size(76.dp, 100.dp))
+            FavoriteAnimation({
+                heartAnimationState = AnimationState.NONE
+            },animationState = heartAnimationState, modifier = Modifier.size(76.dp, 100.dp))
             HeartIconView(
                 modifier = Modifier
                     .size(24.dp)
