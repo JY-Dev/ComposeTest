@@ -3,6 +3,8 @@ package com.jydev.composetest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,8 +12,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.material.*
+import androidx.compose.material.Icon
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -21,6 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jydev.composetest.ui.theme.ComposeTestTheme
@@ -28,31 +36,49 @@ import com.jydev.composetest.ui.theme.ComposeTestTheme
 class MainActivity : ComponentActivity() {
     var messageList = mutableListOf<String>()
 
+    @ExperimentalAnimationApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ComposeTestTheme {
-                var isShowingKeyboard by remember { mutableStateOf(false) }
+                val keyboardState by keyboardAsState()
+                var heartCount by remember { mutableStateOf(0) }
+                val hearts = remember { mutableStateListOf<Heart>() }
                 val focusManager = LocalFocusManager.current
-                // A surface container using the 'background' color from the theme
                 Surface(color = Color.Yellow) {
-                    Box(modifier = Modifier.fillMaxHeight()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         Image(
                             painterResource(R.drawable.background),
                             contentDescription = "",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
-
-                        Row(Modifier.align(Alignment.BottomCenter)) {
+                        Row(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 20.dp)
+                        ) {
                             ChatView(
                                 modifier = Modifier
                                     .weight(1f)
                                     .align(Alignment.Bottom),
-                                isShowingKeyboard,
+                                keyboardState,
                                 focusManager
                             )
-                            HeartEffectView(modifier = Modifier.align(Alignment.Bottom))
+                            AnimatedVisibility(visible = keyboardState == KeyboardState.Closed) {
+                                HeartEffectView(
+                                    modifier = Modifier.size(
+                                        width = 76.dp,
+                                        height = 200.dp
+                                    ), hearts = hearts, heartCount
+                                ) {
+                                    hearts.add(Heart())
+                                    heartCount++
+                                }
+                            }
+                            if (keyboardState == KeyboardState.Opened)
+                                hearts.clear()
+
                         }
                     }
                 }
@@ -66,45 +92,71 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun HeartEffectView(modifier: Modifier) {
-        var heartAnimationState by remember { mutableStateOf(AnimationState.NONE)}
-        Box(modifier) {
-            FavoriteAnimation({
-                heartAnimationState = AnimationState.NONE
-            },animationState = heartAnimationState, modifier = Modifier.size(76.dp, 100.dp))
-            HeartIconView(
-                modifier = Modifier
-                    .size(24.dp)
-                    .align(Alignment.BottomCenter)
-            ) {
-                heartAnimationState = AnimationState.START
+    fun HeartEffectView(
+        modifier: Modifier,
+        hearts: List<Heart>,
+        heartCount: Int,
+        heartClick: () -> Unit
+    ) {
+        BoxWithConstraints(modifier) {
+            HeartAnimationView(hearts = hearts)
+            Column(Modifier.align(Alignment.BottomCenter)) {
+                HeartIconView(
+                    modifier = Modifier
+                        .size(width = 24.dp, height = 20.dp),
+                    heartClick
+                )
+                HeartCountText(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 4.dp,), heartCount = heartCount,
+                )
             }
         }
-
     }
 
     @Composable
-    fun HeartIconView(modifier: Modifier, hearIconOnClick: () -> Unit) {
+    fun HeartAnimationView(hearts: List<Heart>) {
+        repeat(hearts.size) {
+            HeartAnimation(hearts[it])
+        }
+    }
+
+    @Composable
+    fun HeartIconView(modifier: Modifier, heartClick: () -> Unit) {
         Icon(painter = painterFavorite(), "", modifier = modifier.noRippleClickable {
-            hearIconOnClick()
-        })
+            heartClick()
+        }, tint = Color.White)
     }
 
     @Composable
-    fun ChatView(modifier: Modifier, isShowingKeyboard: Boolean, focusManager: FocusManager) {
+    fun HeartCountText(modifier: Modifier,heartCount: Int) {
+        Text(
+            text = heartCount.toString(),
+            color = Color.White,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = modifier
+        )
+    }
+
+    @Composable
+    fun ChatView(modifier: Modifier, keyboardState: KeyboardState, focusManager: FocusManager) {
         var chatMessage by remember { mutableStateOf("") }
         Column(modifier = modifier) {
             ChatList(
                 Modifier
                     .fillMaxWidth(0.8f)
-                    .padding(start = 20.dp, bottom = 20.dp))
+                    .padding(bottom = 22.dp)
+            )
             ChatTextField(
                 Modifier
-                    .wrapContentHeight()
                     .fillMaxWidth()
-                    .padding(start = 20.dp),
+                    .padding(
+                        start = 20.dp,
+                        end = if (keyboardState == KeyboardState.Opened) 20.dp else 0.dp
+                    ),
                 chatMessage,
-                isShowingKeyboard,
                 onMessageChange = {
                     chatMessage = it
                 },
@@ -127,7 +179,19 @@ class MainActivity : ComponentActivity() {
             else messageList
 
             items(messageSubList) { message ->
-                Text(text = message,modifier = Modifier.padding(top = 12.dp),color = Color(0xfff2f2f2))
+                Row(modifier = Modifier.padding(start = 20.dp, top = 12.dp)) {
+                    Text(
+                        text = "테스트",
+                        modifier = Modifier.padding(end = 10.dp),
+                        color = Color(0xfff2f2f2),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = message,
+                        color = Color(0xfff2f2f2)
+                    )
+                }
+
             }
         })
     }
@@ -136,26 +200,47 @@ class MainActivity : ComponentActivity() {
     fun ChatTextField(
         modifier: Modifier,
         message: String,
-        isShowingKeyboard: Boolean,
         onMessageChange: (String) -> Unit,
         keyboardDone: () -> Unit
     ) {
-        TextField(
+        BasicTextField(
+            modifier = modifier
+                .border(
+                    width = 2.dp,
+                    color = Color(0xfff2f2f2),
+                    shape = RoundedCornerShape(75.dp)
+                )
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+            placeholderText = "댓글 작성하기",
+            message = message,
+            onMessageChange = onMessageChange,
+            keyboardDone = keyboardDone)
+    }
+
+    @Composable
+    private fun BasicTextField(
+        modifier: Modifier = Modifier,
+        placeholderText: String = "Placeholder",
+        fontSize: TextUnit = 14.sp,
+        message: String,
+        onMessageChange: (String) -> Unit,
+        keyboardDone: () -> Unit
+    ) {
+        BasicTextField(
+            modifier = modifier
+                .fillMaxWidth(),
             value = message,
             onValueChange = onMessageChange,
-            maxLines = 1,
-            singleLine = true,
             keyboardActions = KeyboardActions(onDone = { keyboardDone() }),
-            shape = RoundedCornerShape(75.dp),
-            colors = TextFieldDefaults.textFieldColors(textColor = Color(0xfff2f2f2)),
-            placeholder = {
-                Text("댓글 작성하기", color = Color(0xfff2f2f2), fontSize = 14.sp)
+            singleLine = true,
+            decorationBox = { innerTextField ->
+                if (message.isEmpty()) Text(
+                    placeholderText,
+                    color = Color(0xfff2f2f2),
+                    fontSize = fontSize
+                )
+                Text(text = message, color = Color(0xfff2f2f2), fontSize = fontSize)
             },
-            modifier = if (isShowingKeyboard) modifier.fillMaxWidth() else modifier.border(
-                width = 2.dp,
-                color = Color(0xfff2f2f2),
-                shape = RoundedCornerShape(75.dp)
-            )
         )
     }
 }
