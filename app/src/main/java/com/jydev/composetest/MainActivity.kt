@@ -67,14 +67,20 @@ class MainActivity : ComponentActivity() {
                             )
                             AnimatedVisibility(visible = keyboardState == KeyboardState.Closed) {
                                 HeartEffectView(
-                                    modifier = Modifier.size(
-                                        width = 76.dp,
-                                        height = 200.dp
-                                    ), hearts = hearts, heartCount
-                                ) {
-                                    hearts.add(Heart())
-                                    heartCount++
-                                }
+                                    modifier = Modifier
+                                        .width(
+                                            width = 76.dp
+                                        )
+                                        .wrapContentHeight(),
+                                    hearts = hearts,
+                                    heartCount,
+                                    animationFinished = {
+                                        hearts.remove(it)
+                                    },
+                                    heartClick = {
+                                        hearts.add(Heart())
+                                        heartCount++
+                                    })
                             }
                             if (keyboardState == KeyboardState.Opened)
                                 hearts.clear()
@@ -96,29 +102,43 @@ class MainActivity : ComponentActivity() {
         modifier: Modifier,
         hearts: List<Heart>,
         heartCount: Int,
+        animationFinished: (Heart) -> Unit,
         heartClick: () -> Unit
     ) {
-        BoxWithConstraints(modifier) {
-            HeartAnimationView(hearts = hearts)
-            Column(Modifier.align(Alignment.BottomCenter)) {
-                HeartIconView(
-                    modifier = Modifier
-                        .size(width = 24.dp, height = 20.dp),
-                    heartClick
-                )
-                HeartCountText(
-                    Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 4.dp,), heartCount = heartCount,
-                )
-            }
+        Column(modifier) {
+            HeartAnimationView(hearts = hearts, animationFinished)
+
+            HeartIconView(
+                modifier = Modifier
+                    .size(width = 24.dp, height = 20.dp)
+                    .align(Alignment.CenterHorizontally),
+                heartClick
+            )
+            HeartCountText(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp),
+                heartCount = heartCount,
+            )
         }
     }
 
     @Composable
-    fun HeartAnimationView(hearts: List<Heart>) {
-        repeat(hearts.size) {
-            HeartAnimation(hearts[it])
+    fun HeartAnimationView(hearts: List<Heart>, animationFinished: (Heart) -> Unit) {
+        BoxWithConstraints(
+            Modifier
+                .height(200.dp)
+                .fillMaxWidth()
+        ) {
+            hearts.forEach {
+                HeartAnimation(
+                    it,
+                    maxWidth,
+                    maxHeight,
+                    Modifier.align(Alignment.TopCenter),
+                    animationFinished
+                )
+            }
         }
     }
 
@@ -130,7 +150,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun HeartCountText(modifier: Modifier,heartCount: Int) {
+    fun HeartCountText(modifier: Modifier, heartCount: Int) {
         Text(
             text = heartCount.toString(),
             color = Color.White,
@@ -214,7 +234,8 @@ class MainActivity : ComponentActivity() {
             placeholderText = "댓글 작성하기",
             message = message,
             onMessageChange = onMessageChange,
-            keyboardDone = keyboardDone)
+            keyboardDone = keyboardDone
+        )
     }
 
     @Composable
@@ -233,7 +254,7 @@ class MainActivity : ComponentActivity() {
             onValueChange = onMessageChange,
             keyboardActions = KeyboardActions(onDone = { keyboardDone() }),
             singleLine = true,
-            decorationBox = { innerTextField ->
+            decorationBox = {
                 if (message.isEmpty()) Text(
                     placeholderText,
                     color = Color(0xfff2f2f2),

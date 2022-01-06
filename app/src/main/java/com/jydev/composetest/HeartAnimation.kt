@@ -1,23 +1,15 @@
 package com.jydev.composetest
 
-import android.graphics.Rect
-import android.graphics.drawable.Drawable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 
 @Composable
 fun painterFavorite() = painterResource(R.drawable.ic_line_heart)
@@ -25,55 +17,50 @@ fun painterFavorite() = painterResource(R.drawable.ic_line_heart)
 enum class AnimationState {
     START, NONE
 }
+enum class HeartAnimationState {
+    RIGHT,CENTER, LEFT
+}
 
 @Composable
-fun HeartAnimation(heart : Heart) {
-    var animationState by remember { mutableStateOf(AnimationState.NONE) }
-    val fraction: Float by animateFloatAsState(
-        targetValue = if (animationState == AnimationState.START) 1f else 0f,
-        animationSpec = tween(durationMillis = heart.speed, easing = LinearEasing)
+fun HeartAnimation(heart: Heart,maxWidth : Dp, maxHeight: Dp , modifier: Modifier , animationFinished : (Heart) -> Unit) {
+    var heartYAnimationState by remember { mutableStateOf(AnimationState.NONE) }
+    var heartXAnimationState by remember { mutableStateOf(HeartAnimationState.CENTER) }
+    var heartXAnimationCount by remember { mutableStateOf(0)}
+    val yFraction: Float by animateFloatAsState(
+        targetValue = if (heartYAnimationState == AnimationState.START) 1f else 0f,
+        animationSpec = tween(durationMillis = heart.speed, easing = FastOutSlowInEasing)
+    )
+    val xFraction: Float by animateFloatAsState(
+        targetValue = if (heartXAnimationState == HeartAnimationState.RIGHT) 0.15f else if(heartXAnimationState == HeartAnimationState.CENTER) 0f else -0.15f,
+        animationSpec = tween(durationMillis = heart.speed/4, easing = FastOutSlowInEasing)
     )
     LaunchedEffect(Unit) {
-        animationState = AnimationState.START
+        heartYAnimationState = AnimationState.START
+        heartXAnimationState = HeartAnimationState.LEFT
+        heartXAnimationCount++
     }
-    HeartAnimationInternal(heart,fraction)
-}
-
-@Composable
-private fun HeartAnimationInternal(
-    heart: Heart,
-    fraction: Float
-) {
-
-    val heartDrawable = rememberHeartDrawable()
-    val heartHeight = heartDrawable.intrinsicHeight * heart.scale
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val width = size.width
-        val height = size.height
-        translate(width / 2, (height - heartHeight / 2) * (1 - fraction)) {
-            scale(heart.scale,heart.scale){
-                drawIntoCanvas { canvas ->
-                    heartDrawable.draw(canvas.nativeCanvas)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun rememberHeartDrawable(): Drawable {
-    val context = LocalContext.current
-    val halfWidth = 24.dp.toPx() / 2
-    val halfHeight = 20.dp.toPx() / 2
-    return remember {
-        ContextCompat.getDrawable(context, R.drawable.ic_opacity_heart)!!
-            .apply {
-                bounds = Rect(-halfWidth, -halfHeight, halfWidth, halfHeight)
-            }
-    }
+    if(xFraction == -0.15f && heartXAnimationCount == 1){
+        heartXAnimationState = HeartAnimationState.RIGHT
+        heartXAnimationCount++
+    } else if(xFraction == 0.15f && heartXAnimationCount == 2){
+        heartXAnimationState = HeartAnimationState.LEFT
+        heartXAnimationCount++
+    } else if(xFraction == -0.15f && heartXAnimationCount == 3){
+        heartXAnimationState = HeartAnimationState.CENTER
+        heartXAnimationCount++
+    } else if(xFraction == 0f && heartXAnimationCount == 4)
+        animationFinished(heart)
+    Icon(
+        painter = painterResource(id = R.drawable.ic_opacity_heart),
+        contentDescription = "",
+        modifier
+            .size(24.dp * heart.scale)
+            .offset(x = maxWidth * xFraction, y = maxHeight - maxHeight * yFraction),
+        tint = Color.White
+    )
 }
 
 data class Heart(
-    val scale: Float = getRandomFloatRange(0.1f, 1f),
-    val speed: Int = (100..3000).random()
+    val scale: Float = getRandomFloatRange(0.5f, 1f),
+    val speed: Int = 3000
 )
